@@ -14,7 +14,7 @@ import streamlit as st
 
 from engine import parameters as P
 from engine.pipeline import run
-from engine.validation import lc_ground_truth_check
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Page config
