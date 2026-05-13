@@ -8,7 +8,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from engine.pipeline import run
-from engine import parameters as P
+from engine.financial import FinancialInputs
 
 st.set_page_config(page_title="NewCo Scoping Calculator", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 st.title("NewCo Investment Scoping Calculator")
@@ -61,43 +61,77 @@ st.divider()
 run_button = st.button("Run scoping", type="primary", disabled=(df_input is None), use_container_width=True)
 
 if run_button and df_input is not None:
-    with st.spinner("Running pipeline (Stages 1–7)…"):
+    with st.spinner("Running pipeline (Stages 1-7)..."):
         try:
-            result = run(df_input, ltv=ltv/100, interest_rate=rate/100, tenor_years=tenor, tariff_thb_per_kwh=tariff, tariff_escalation_pct=tariff_escalation/100, boi_years=boi_years, estate=estate)
+            inputs = FinancialInputs(
+                debt_ltv=ltv / 100,
+                debt_rate=rate / 100,
+                debt_tenor_years=int(tenor),
+                tariff_thb_kwh=tariff,
+                tariff_escalation=tariff_escalation / 100,
+                boi_years=int(boi_years),
+            )
+            result = run(df_input, inputs=inputs)
         except Exception as e:
             st.error(f"Pipeline error: {e}")
             st.stop()
 
+    if result.intake_errors:
+        st.error(f"Intake errors: {result.intake_errors}")
+        st.stop()
+
+    fin = result.financial_60_ltv
+    cf = fin.cashflow_df
+
     st.subheader("Headline metrics")
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total envelope", f"{result['total_mwp']:.2f} MWp", f"{result['n_segments']} segments")
-    m2.metric("EPC", f"${result['epc_usd_m']:.2f}M")
-    m3.metric("Total project cost", f"${result['tpc_usd_m']:.2f}M")
-    m4.metric("P50 generation", f"{result['p50_mwh_yr']:,.0f} MWh/yr")
+    m1.metric("Total envelope", f"{fin.envelope_mwp:.2f} MWp", f"{len(result.df_validated)} segments")
+    m2.metric("EPC", f"${fin.epc_usd_m:.2f}M")
+    m3.metric("Total project cost", f"${fin.total_project_cost_usd_m:.2f}M")
+    p50_mwh = float(result.df_yielded["p50_annual_kwh"].sum()) / 1000 if "p50_annual_kwh" in result.df_yielded.columns else 0
+    m4.metric("P50 generation", f"{p50_mwh:,.0f} MWh/yr")
 
     m5, m6, m7, m8 = st.columns(4)
-    m5.metric(f"Sponsor IRR ({ltv}% LTV)", f"{result['sponsor_irr']*100:.1f}%")
-    m6.metric("DSCR (P90)", f"{result['dscr_p90']:.2f}×")
-    m7.metric("Payback (blended)", f"{result['payback_years']:.1f} yrs")
-    m8.metric("Y10 exit IRR @13.5×", f"{result['y10_exit_irr']*100:.1f}%", f"MOIC {result['y10_moic']:.2f}×")
+    m5.metric(f"Equity IRR ({ltv}% LTV)", f"{fin.equity_irr*100:.1f}%")
+    dscr_label = "BREACH" if fin.dscr_min < 1.10 else ("Marginal" if fin.dscr_min < 1.30 else "OK")
+    m6.metric("DSCR min", f"{fin.dscr_min:.2f}x", delta=dscr_label, delta_color="inverse" if fin.dscr_min < 1.30 else "normal")
+    m7.metric("Payback (blended)", f"{fin.payback_years:.1f} yrs")
+    m8.metric("Y10 exit IRR @13.5x", f"{fin.y10_exit_irr*100:.1f}%", f"MOIC {fin.moic_y10:.2f}x")
 
     st.divider()
     st.subheader("Annual cashflow (25 years)")
-    cf = result["cashflow"]
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=cf["year"], y=cf["revenue_usd_m"], mode="lines", name="Revenue", line=dict(color="#1f77b4", width=2)))
-    fig.add_trace(go.Scatter(x=cf["year"], y=cf["opex_usd_m"], mode="lines", name="OPEX", line=dict(color="#64748B", width=2)))
-    fig.add_trace(go.Scatter(x=cf["year"], y=cf["debt_service_usd_m"], mode="lines", name="Debt service", line=dict(color="#F59E0B", width=2)))
-    fig.add_trace(go.Scatter(x=cf["year"], y=cf["fcfe_usd_m"], mode="lines", name="FCFE", line=dict(color="#0D9488", width=3), fill="tozeroy", fillcolor="rgba(13,148,136,0.1)"))
+    rev_col = "total_revenue_usd" if "total_revenue_usd" in cf.columns else "energy_revenue_usd"
+    fig.add_trace(go.Scatter(x=cf["year"], y=cf[rev_col]/1e6, mode="lines", name="Revenue", line=dict(color="#1f77b4", width=2)))
+    fig.add_trace(go.Scatter(x=cf["year"], y=cf["opex_usd"]/1e6, mode="lines", name="OPEX", line=dict(color="#64748B", width=2)))
+    fig.add_trace(go.Scatter(x=cf["year"], y=cf["debt_service_usd"]/1e6, mode="lines", name="Debt service", line=dict(color="#F59E0B", width=2)))
+    fig.add_trace(go.Scatter(x=cf["year"], y=cf["fcfe_usd"]/1e6, mode="lines", name="FCFE", line=dict(color="#0D9488", width=3), fill="tozeroy", fillcolor="rgba(13,148,136,0.1)"))
     fig.update_layout(xaxis_title="Year", yaxis_title="USD millions", hovermode="x unified", height=400, margin=dict(l=40,r=40,t=20,b=40))
     st.plotly_chart(fig, use_container_width=True)
 
+    if result.tornado_results:
+        st.divider()
+        st.subheader("Sensitivity tornado (IRR +/- bps from base)")
+        try:
+            tornado_data = [{"dimension": r.dimension, "upside_bps": r.upside_bps, "downside_bps": r.downside_bps, "magnitude_bps": r.magnitude_bps} for r in result.tornado_results]
+            sens_df = pd.DataFrame(tornado_data).sort_values("magnitude_bps", ascending=True)
+            fig2 = go.Figure()
+            fig2.add_trace(go.Bar(y=sens_df["dimension"], x=sens_df["upside_bps"], name="Upside", orientation="h", marker_color="#0D9488"))
+            fig2.add_trace(go.Bar(y=sens_df["dimension"], x=sens_df["downside_bps"], name="Downside", orientation="h", marker_color="#F59E0B"))
+            fig2.update_layout(barmode="overlay", xaxis_title="IRR delta (bps)", height=400, margin=dict(l=120,r=40,t=20,b=40))
+            st.plotly_chart(fig2, use_container_width=True)
+        except Exception as e:
+            st.warning(f"Tornado chart skipped: {e}")
+
     st.divider()
     st.subheader("Per-segment breakdown")
-    seg_df = result["segments"]
-    display_cols = ["segment_id","typology","kwp_dc","p50_kwh_yr","unit_cost_per_kwp","segment_capex_usd","offtaker_type","self_consumption_pct","year1_revenue_usd"]
+    seg_df = result.df_capex if not result.df_capex.empty else result.df_attributed
+    display_cols = ["segment_id","typology","kwp_dc","p50_annual_kwh","segment_epc_usd","offtaker_type","self_consumption_pct"]
     cols_present = [c for c in display_cols if c in seg_df.columns]
-    st.dataframe(seg_df[cols_present].round(2), use_container_width=True, height=350)
+    if cols_present:
+        st.dataframe(seg_df[cols_present].round(2), use_container_width=True, height=350)
+    else:
+        st.dataframe(seg_df.round(2), use_container_width=True, height=350)
 
     st.divider()
     out_buf = io.StringIO()
@@ -108,4 +142,4 @@ else:
     st.info("Upload a segment CSV or select a preset, then click **Run scoping**.")
 
 st.divider()
-st.caption("Engine: NC-METH-001 v1.1.0 · Parameters: NC-PARAM-001 v1.1.1 · Internal – not for redistribution")
+st.caption("Engine: NC-METH-001 v1.1.0 · Parameters: NC-PARAM-001 v1.1.1 · Internal - not for redistribution")
