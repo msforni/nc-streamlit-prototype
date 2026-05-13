@@ -1,0 +1,7 @@
+segment_id,estate,typology,area_m2,kwh_capacity,kwp_dc,offtaker_type,tenant_name,tenant_tier,self_consumption_pct,notes,suitability_score
+BP-T1-001,Bangplee,T1,10000,,1400,iea_direct,,,0.85,Replace with real segment from Bangplee GIS pass,4
+BP-T1-002,Bangplee,T1,8000,,1120,tenant,Replace Tenant Name,C,0.80,Tenant rooftop placeholder,3
+BP-T2-001,Bangplee,T2,6000,,840,iea_direct,,,0.85,Replace with real building rooftop segment,4
+BP-T4A-001,Bangplee,T4A,10000,,1100,iea_direct,,,0.80,Replace with real carport segment,3
+BP-T6W-001,Bangplee,T6W,5000,,700,iea_direct,,,0.90,Replace with real water surface segment,4
+BP-BESS-001,Bangplee,BESS,,5000,0,iea_direct,,,0.85,Replace with real BESS sizing (5 MWh container),4

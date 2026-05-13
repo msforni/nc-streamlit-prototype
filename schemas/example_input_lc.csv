@@ -1,0 +1,6 @@
+segment_id,estate,typology,area_m2,kwh_capacity,kwp_dc,offtaker_type,tenant_name,tenant_tier,self_consumption_pct,suitability_score,notes
+LC-T1-001,Laem Chabang,T1,35000,,5000,iea_direct,,,0.85,4,Industrial warehouse rooftop block A
+LC-T2-001,Laem Chabang,T2,18000,,2570,tenant,Thai Summit Group,C,0.90,3,Office complex rooftop
+LC-T4A-001,Laem Chabang,T4A,12000,,1330,iea_direct,,,0.80,4,Main parking carport
+LC-T4B-DC-001,Laem Chabang,T4B-DC,8000,,1000,iea_direct,,,0.75,3,Decorative canopy near port
+LC-T6W-001,Laem Chabang,T6W,45000,,6430,iea_direct,,,0.85,4,Water-surface floating PV segment

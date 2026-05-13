@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NewCo Segment Input Schema",
+  "description": "Per-segment CSV row schema for the investment scoping calculator. v0.1.",
+  "type": "object",
+  "required": ["segment_id", "estate", "typology", "offtaker_type", "self_consumption_pct"],
+  "properties": {
+    "segment_id": {
+      "type": "string",
+      "description": "Unique segment identifier. Convention: <ESTATE>-<TYPOLOGY>-<NN>."
+    },
+    "estate": {
+      "type": "string",
+      "description": "IEAT estate name. Must match a key in parameters.ESTATE_AREA_RAI.",
+      "examples": ["Laem Chabang", "Bangpoo", "Bangplee", "Map Ta Phut"]
+    },
+    "typology": {
+      "type": "string",
+      "enum": ["T1", "T2", "T4A", "T4B-DC", "T6W", "BESS"],
+      "description": "Per Annex H. T1 invalid at Lat Krabang and Lamphun (land-lease)."
+    },
+    "area_m2": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Available surface area in m². Required for PV typologies."
+    },
+    "kwh_capacity": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "BESS capacity in kWh. Required for BESS typology."
+    },
+    "kwp_dc": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Pre-computed DC nameplate. If provided, overrides derivation from area_m2."
+    },
+    "offtaker_type": {
+      "type": "string",
+      "enum": ["iea_direct", "tenant", "mixed"],
+      "description": "Who pays for the energy."
+    },
+    "tenant_name": {
+      "type": ["string", "null"],
+      "description": "Tenant entity name. Required when offtaker_type is tenant or mixed."
+    },
+    "tenant_tier": {
+      "type": ["string", "null"],
+      "enum": ["A", "B", "C", "D", null],
+      "description": "Per NC-METH-001 Annex G credit grading. Defaults to C if missing for tenant rows."
+    },
+    "self_consumption_pct": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Fraction of generation consumed behind-the-meter (0-1)."
+    },
+    "unit_cost_override": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "description": "Override $/kWp for this segment. If null, use CAPEX_BY_TYPOLOGY default."
+    },
+    "suitability_score": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 4,
+      "description": "Composite per Annex G §3.4. 0=excluded, 4=ideal. Defaults to 3."
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Free-text annotation."
+    }
+  },
+  "additionalProperties": false
+}

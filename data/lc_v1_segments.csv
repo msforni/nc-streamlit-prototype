@@ -1,0 +1,48 @@
+segment_id,estate,typology,area_m2,kwh_capacity,kwp_dc,offtaker_type,tenant_name,tenant_tier,self_consumption_pct,notes,suitability_score
+LC-T1-001,Laem Chabang,T1,5714,,800,iea_direct,,,0.85,Container yard rooftop,4
+LC-T1-002,Laem Chabang,T1,5357,,750,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-003,Laem Chabang,T1,5000,,700,tenant,Tenant LC-A,B,0.85,Tenant warehouse rooftop,4
+LC-T1-004,Laem Chabang,T1,4643,,650,iea_direct,,,0.85,Warehouse rooftop,4
+LC-T1-005,Laem Chabang,T1,4286,,600,tenant,Tenant LC-B,C,0.80,Tenant building rooftop,3
+LC-T1-006,Laem Chabang,T1,3929,,550,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-007,Laem Chabang,T1,3571,,500,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-008,Laem Chabang,T1,3214,,450,tenant,Tenant LC-C,B,0.85,Tenant rooftop,4
+LC-T1-009,Laem Chabang,T1,2857,,400,iea_direct,,,0.85,Industrial rooftop,3
+LC-T1-010,Laem Chabang,T1,5357,,750,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-011,Laem Chabang,T1,5000,,700,tenant,Tenant LC-D,C,0.85,Tenant rooftop,4
+LC-T1-012,Laem Chabang,T1,4643,,650,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-013,Laem Chabang,T1,4286,,600,iea_direct,,,0.85,Industrial rooftop,4
+LC-T1-014,Laem Chabang,T1,6071,,850,iea_direct,,,0.85,Industrial rooftop large,4
+LC-T1-015,Laem Chabang,T1,6429,,900,tenant,Tenant LC-E,B,0.85,Tenant warehouse,4
+LC-T1-016,Laem Chabang,T1,7143,,1000,iea_direct,,,0.85,Industrial rooftop large,4
+LC-T1-017,Laem Chabang,T1,7857,,1100,iea_direct,,,0.85,Industrial rooftop XL,4
+LC-T1-018,Laem Chabang,T1,8571,,1200,tenant,Tenant LC-F,C,0.85,Tenant warehouse XL,4
+LC-T1-019,Laem Chabang,T1,7500,,1050,iea_direct,,,0.85,Industrial rooftop XL,4
+LC-T1-020,Laem Chabang,T1,2143,,300,iea_direct,,,0.85,Industrial rooftop small,3
+LC-T2-001,Laem Chabang,T2,5000,,700,iea_direct,,,0.85,Admin building rooftop,4
+LC-T2-002,Laem Chabang,T2,5714,,800,iea_direct,,,0.85,Operations building,4
+LC-T2-003,Laem Chabang,T2,4286,,600,tenant,Tenant LC-G,B,0.85,Tenant office rooftop,4
+LC-T2-004,Laem Chabang,T2,5357,,750,iea_direct,,,0.85,Logistics building,4
+LC-T2-005,Laem Chabang,T2,4643,,650,tenant,Tenant LC-H,C,0.80,Tenant building,3
+LC-T2-006,Laem Chabang,T2,4286,,600,iea_direct,,,0.85,Service building,4
+LC-T2-007,Laem Chabang,T2,5000,,700,iea_direct,,,0.85,Maintenance building,4
+LC-T2-008,Laem Chabang,T2,5000,,700,tenant,Tenant LC-I,B,0.85,Tenant building,4
+LC-T2-009,Laem Chabang,T2,5714,,800,iea_direct,,,0.85,Customs facility,4
+LC-T2-010,Laem Chabang,T2,5000,,700,iea_direct,,,0.85,Inspection building,4
+LC-T2-011,Laem Chabang,T2,4286,,600,tenant,Tenant LC-J,C,0.80,Tenant building,3
+LC-T2-012,Laem Chabang,T2,4643,,650,iea_direct,,,0.85,Cargo handling building,4
+LC-T2-013,Laem Chabang,T2,5357,,750,iea_direct,,,0.85,Operations annex,4
+LC-T4A-001,Laem Chabang,T4A,7273,,800,iea_direct,,,0.80,Employee parking canopy,3
+LC-T4A-002,Laem Chabang,T4A,8182,,900,iea_direct,,,0.80,Truck parking canopy,3
+LC-T4A-003,Laem Chabang,T4A,9091,,1000,iea_direct,,,0.80,Container truck staging,3
+LC-T4A-004,Laem Chabang,T4A,6818,,750,tenant,Tenant LC-K,C,0.80,Tenant parking canopy,3
+LC-T4A-005,Laem Chabang,T4A,5909,,650,iea_direct,,,0.80,Service parking canopy,3
+LC-T4A-006,Laem Chabang,T4A,8182,,900,iea_direct,,,0.80,Logistics parking canopy,3
+LC-T4BDC-001,Laem Chabang,T4B-DC,3200,,400,iea_direct,,,0.85,Decorative pavilion,3
+LC-T4BDC-002,Laem Chabang,T4B-DC,4000,,500,iea_direct,,,0.85,Architectural canopy,3
+LC-T4BDC-003,Laem Chabang,T4B-DC,4800,,600,iea_direct,,,0.85,Entry pavilion,3
+LC-T6W-001,Laem Chabang,T6W,5714,,800,iea_direct,,,0.90,Cooling pond floating,4
+LC-T6W-002,Laem Chabang,T6W,6429,,900,iea_direct,,,0.90,Retention pond floating,4
+LC-T6W-003,Laem Chabang,T6W,6786,,950,iea_direct,,,0.90,Stormwater pond floating,4
+LC-T6W-004,Laem Chabang,T6W,6929,,970,iea_direct,,,0.90,Treatment pond floating,4
+LC-T6W-005,Laem Chabang,T6W,6929,,970,iea_direct,,,0.90,Industrial pond floating,4

@@ -1,0 +1,6 @@
+segment_id,estate,typology,area_m2,kwh_capacity,kwp_dc,offtaker_type,tenant_name,tenant_tier,self_consumption_pct,notes,suitability_score
+MTP-T1-001,Map Ta Phut,T1,12000,,1680,iea_direct,,,0.85,Replace with real MTP segment from GIS pass,4
+MTP-T1-002,Map Ta Phut,T1,10000,,1400,tenant,Replace Tenant Name,C,0.80,Tenant rooftop placeholder,3
+MTP-T2-001,Map Ta Phut,T2,8000,,1120,iea_direct,,,0.85,Replace with real building rooftop segment,4
+MTP-T4A-001,Map Ta Phut,T4A,15000,,1650,iea_direct,,,0.80,Replace with real carport segment,3
+MTP-BESS-001,Map Ta Phut,BESS,,10000,0,iea_direct,,,0.85,Replace with real BESS sizing (10 MWh containers),4
