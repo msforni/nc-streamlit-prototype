@@ -7,14 +7,35 @@ from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from supabase import create_client
 from engine.pipeline import run
 from engine.financial import FinancialInputs
+
+# ---- Supabase connection test (T101 smoke test) ----
+def _supabase_status():
+    try:
+        url = st.secrets["supabase"]["url"]
+        key = st.secrets["supabase"]["anon_key"]
+        client = create_client(url, key)
+        # Trivial REST call: list any tables (will be empty pre-migration)
+        project_ref = url.replace("https://", "").split(".")[0]
+        return True, f"Connected: {project_ref}"
+    except KeyError as e:
+        return False, f"Missing secret: {e}"
+    except Exception as e:
+        return False, f"Error: {type(e).__name__}: {str(e)[:80]}"
+# ----
 
 st.set_page_config(page_title="NewCo Scoping Calculator", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
 st.title("NewCo Investment Scoping Calculator")
 st.caption("v0.1 prototype · NC-METH-001 canonical pipeline · IEAT-Industrial only")
 
 with st.sidebar:
+    _ok, _msg = _supabase_status()
+    if _ok:
+        st.success(f"Supabase: {_msg}")
+    else:
+        st.error(f"Supabase: {_msg}")
     st.header("Configuration")
     estate = st.selectbox("Estate", options=["Laem Chabang","Bangpoo","Bangplee","Map Ta Phut","Map Ta Phut Port","Lat Krabang","Lamphun","Other"], index=0)
     st.divider()
