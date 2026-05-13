@@ -116,7 +116,7 @@ with st.sidebar:
     st.caption(
         "Parameters locked from NC-PARAM-001 v1.1.1: "
         f"FX {P.FX_THB_USD}, grid EF {P.GRID_EF_TCO2_PER_MWH}, "
-        f"BESS ${P.BESS_USD_PER_KWH}/kWh"
+        f"BESS ${P.BESS_USD_PER_KWH_LFP}/kWh"
     )
 
 # ─────────────────────────────────────────────────────────────────────
