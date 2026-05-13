@@ -85,7 +85,7 @@ with st.sidebar:
     st.divider()
     st.subheader("Tariff override")
 
-    tariff_default = P.TARIFF_BY_ESTATE.get(estate, 3.85)
+    tariff_default = 3.85  # Default LC tariff
     tariff = st.number_input(
         "PPA tariff (THB/kWh)",
         min_value=2.50,
