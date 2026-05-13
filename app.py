@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from engine import parameters as P
-from engine.pipeline import run_pipeline
+from engine.pipeline import run
 from engine.validation import lc_ground_truth_check
 
 # ─────────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ run_button = st.button(
 if run_button and df_input is not None:
     with st.spinner("Running pipeline (Stages 1-7)…"):
         try:
-            result = run_pipeline(
+            result = run(
                 df_input,
                 ltv=ltv / 100,
                 interest_rate=rate / 100,
