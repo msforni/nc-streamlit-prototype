@@ -173,8 +173,15 @@ if run_button and df_input is not None:
 
     m5, m6, m7, m8 = st.columns(4)
     m5.metric(f"Equity IRR ({ltv}% LTV)", f"{fin.equity_irr*100:.1f}%")
-    dscr_label = "BREACH" if fin.dscr_min < 1.10 else ("Marginal" if fin.dscr_min < 1.30 else "OK")
-    m6.metric("DSCR min", f"{fin.dscr_min:.2f}x", delta=dscr_label, delta_color="inverse" if fin.dscr_min < 1.30 else "normal")
+    # DSCR: canonical IC headline is P90 minimum. P50 shown as delta for context.
+    dscr_p90 = getattr(fin, "dscr_min_p90", 0.0) or 0.0
+    dscr_label = "BREACH" if dscr_p90 < 1.05 else ("Lockup" if dscr_p90 < 1.15 else "OK")
+    m6.metric(
+        "DSCR min (P90)",
+        f"{dscr_p90:.2f}x",
+        delta=f"{dscr_label} · P50 {fin.dscr_min:.2f}x",
+        delta_color="inverse" if dscr_p90 < 1.15 else "normal",
+    )
     m7.metric("Payback (blended)", f"{fin.payback_years:.1f} yrs")
     m8.metric("Y10 exit IRR @13.5x", f"{fin.y10_exit_irr*100:.1f}%", f"MOIC {fin.moic_y10:.2f}x")
 

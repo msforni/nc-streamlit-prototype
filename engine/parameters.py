@@ -198,6 +198,26 @@ LTV_BASIS_BY_ESTATE: Final[dict[str, str]] = {
     # Example: "bma-buildings": LTV_BASIS_TPC,
 }
 
+# Revenue basis — how generation translates to revenue.
+# BTM_FULL: full p50_annual_kwh × tariff (canonical LC: all generation
+#   self-consumed at BTM tariff; SC% and credit_factor are metadata not
+#   revenue haircuts).
+# ATTRIBUTED: gen × self_consumption_pct × credit_factor × tariff
+#   (conservative: non-self-consumed kWh exported to grid at zero revenue;
+#   credit-haircut applied to tenant-attributed revenue in base case).
+# Resolved 14 May 2026 (NC-SPRINT-002 LC drift Option X): canonical LC
+# assumes BTM_FULL. The v0.1 ATTRIBUTED default was a simplification.
+REVENUE_BASIS_BTM_FULL: Final[str] = "BTM_FULL"
+REVENUE_BASIS_ATTRIBUTED: Final[str] = "ATTRIBUTED"
+REVENUE_BASIS_DEFAULT: Final[str] = REVENUE_BASIS_BTM_FULL
+
+REVENUE_BASIS_BY_ESTATE: Final[dict[str, str]] = {
+    "laem chabang": REVENUE_BASIS_BTM_FULL,
+    "lc": REVENUE_BASIS_BTM_FULL,
+    # Add other asset classes here. Conservative ATTRIBUTED is appropriate
+    # where grid-export-at-zero is genuine (some treasury/government use cases).
+}
+
 # ============================================================
 # §11 — Returns / operating parameters
 # ============================================================
@@ -214,6 +234,7 @@ MODULE_EFFICIENCY_MIN: Final[float] = 0.21
 # Exit
 EXIT_MULTIPLE_LC_Y10: Final[float] = 13.5        # × EBITDA — canonical LC Y10 exit
 EXIT_YEAR: Final[int] = 10
+EXIT_COSTS_PCT: Final[float] = 0.03              # 3% transaction costs at exit (canonical LC Y10_Exit tab)
 
 # ============================================================
 # §15 — IEAT estate areas (rai)

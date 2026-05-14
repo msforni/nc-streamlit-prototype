@@ -39,10 +39,16 @@ def attribute(df: pd.DataFrame) -> pd.DataFrame:
 
     out["credit_factor"] = out.apply(_row_credit, axis=1)
 
-    # Attributed consumption = generation × self_consumption_pct × credit_factor
+    # ATTRIBUTED basis: generation × self_consumption_pct × credit_factor.
+    # Conservative — non-self-consumed kWh assumed exported at zero revenue.
     out["attributed_consumption_kwh"] = (
         out["p50_annual_kwh"] * out["self_consumption_pct"] * out["credit_factor"]
     )
+
+    # BTM_FULL basis: full generation × tariff (canonical LC v1.0 assumption).
+    # SC% and credit_factor are metadata not revenue haircuts in this mode.
+    # See NC-PARAM-001 REVENUE_BASIS_BY_ESTATE map.
+    out["btm_full_consumption_kwh"] = out["p50_annual_kwh"].astype(float)
 
     # Excess generation (above SC%) is grid-export at lower revenue (or zero)
     # For v0.1 we assume 0 grid revenue (BTM-only). Track for sensitivity.
@@ -60,9 +66,13 @@ def tenant_consent_factor(
     """Apply a tenant-consent haircut.
 
     Sensitivity dimension: what if only 80% of tenants sign ESAs?
-    consent_pct is applied to attributed revenue from tenant + mixed rows.
+    consent_pct is applied to attributed revenue from tenant + mixed rows
+    across BOTH revenue-basis columns so downstream financial.model picks
+    up the haircut regardless of which basis is active.
     """
     out = df.copy()
     tenant_rows = out["offtaker_type"].isin({"tenant", "mixed"})
     out.loc[tenant_rows, "attributed_consumption_kwh"] *= consent_pct
+    if "btm_full_consumption_kwh" in out.columns:
+        out.loc[tenant_rows, "btm_full_consumption_kwh"] *= consent_pct
     return out

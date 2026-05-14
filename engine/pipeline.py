@@ -97,6 +97,13 @@ def run(
         resolved_basis = P.LTV_BASIS_BY_ESTATE.get(estate.strip().lower(), P.LTV_BASIS_DEFAULT)
         inputs = replace(inputs, ltv_basis=resolved_basis)
 
+    # Resolve revenue basis: explicit input wins; else estate map; else default.
+    # See NC-SPRINT-002 Option X (LC drift resolution, 14 May 2026).
+    if inputs.revenue_basis is None:
+        from dataclasses import replace
+        resolved_rev = P.REVENUE_BASIS_BY_ESTATE.get(estate.strip().lower(), P.REVENUE_BASIS_DEFAULT)
+        inputs = replace(inputs, revenue_basis=resolved_rev)
+
     # Stage 2 — Sizing
     df_sized = sizing.compute(df_validated)
     envelope = sizing.envelope_mwp(df_sized)

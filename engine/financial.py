@@ -50,6 +50,12 @@ class FinancialInputs:
     # NC-FM-LC-001 v1.0 and standard PF practice. Pipeline resolves the
     # per-estate value from P.LTV_BASIS_BY_ESTATE when this is left as None.
     ltv_basis: Optional[str] = None
+    # NC-SPRINT-002 Option X: revenue basis. BTM_FULL = full p50 generation
+    # at BTM tariff (canonical LC assumption). ATTRIBUTED = haircut by SC%
+    # and credit_factor (v0.1 conservative default — wrong for canonical LC).
+    # Pipeline resolves per-estate value from P.REVENUE_BASIS_BY_ESTATE when
+    # this is left as None.
+    revenue_basis: Optional[str] = None
 
 
 @dataclass
@@ -74,6 +80,7 @@ class FinancialResults:
     y10_exit_irr: float
     cashflow_df: pd.DataFrame
     dscr_series: pd.Series = field(default_factory=pd.Series)
+    dscr_min_p90: float = 0.0
 
 
 def model(
@@ -95,12 +102,16 @@ def model(
     if inputs is None:
         inputs = FinancialInputs()
 
-    # Apply tenant consent haircut
-    attr_y1_kwh = (
-        df_attributed["attributed_consumption_kwh"].sum()
-        # Tenant consent applies to tenant + mixed rows only
-        * 1.0  # already accounted for via offtaker.tenant_consent_factor if called upstream
-    )
+    # NC-SPRINT-002 Option X: pick the revenue source column based on basis.
+    # BTM_FULL: revenue = full p50 generation × tariff (canonical LC).
+    # ATTRIBUTED: revenue = gen × SC% × credit (conservative v0.1 default).
+    revenue_basis = (inputs.revenue_basis or P.REVENUE_BASIS_DEFAULT).upper()
+    if revenue_basis == P.REVENUE_BASIS_BTM_FULL and "btm_full_consumption_kwh" in df_attributed.columns:
+        consumption_col = "btm_full_consumption_kwh"
+    else:
+        consumption_col = "attributed_consumption_kwh"
+
+    attr_y1_kwh = float(df_attributed[consumption_col].sum())
 
     # Build year-by-year cashflow
     years = list(range(0, inputs.asset_life_years + 1))  # Y0..Y25
@@ -218,17 +229,34 @@ def model(
     # NPV @ discount rate
     npv_usd = npf.npv(inputs.discount_rate, fcfe_usd)
 
-    # Y10 exit: residual sale at exit_multiple × EBITDA (year 10)
+    # Debt balance schedule (used by Y10 exit + reporting)
+    debt_balance_usd = _debt_balance_schedule(
+        principal=debt_usd,
+        rate=inputs.debt_rate,
+        tenor=inputs.debt_tenor_years,
+        grace=inputs.debt_grace_years,
+        total_years=n_years,
+    )
+
+    # Y10 exit: equity value = EV − closing debt − transaction costs.
+    # NC-SPRINT-002 Option X fix (May 2026): previously the engine added the
+    # full enterprise value to FCFE_Y10, which overstated terminal proceeds
+    # by the Y10 closing debt balance and ignored exit costs. Canonical
+    # NC-FM-LC-001 v1.0 Y10_Exit tab: Net distributable = EV − closing debt
+    # − 3% transaction costs (then split per JV waterfall, out of engine scope).
     y10_index = inputs.exit_year
     y10_ebitda = ebitda_usd[y10_index]
-    terminal_value = y10_ebitda * inputs.exit_multiple
-    # Add terminal to FCFE at year 10, truncate cashflow there
+    enterprise_value = y10_ebitda * inputs.exit_multiple
+    y10_closing_debt = float(debt_balance_usd[y10_index])
+    gross_equity_value = enterprise_value - y10_closing_debt
+    terminal_to_equity = gross_equity_value * (1.0 - P.EXIT_COSTS_PCT)
+    # Add net equity terminal to FCFE at year 10, truncate cashflow there
     fcfe_for_exit = fcfe_usd[:y10_index + 1].copy()
-    fcfe_for_exit[-1] += terminal_value
+    fcfe_for_exit[-1] += terminal_to_equity
     y10_irr = _safe_irr(fcfe_for_exit.tolist())
 
-    # MOIC at Y10 = (sum of FCFE Y1..Y10 + terminal) / equity outflow
-    total_inflows_y10 = fcfe_usd[1:y10_index + 1].sum() + terminal_value
+    # MOIC at Y10 = (sum of FCFE Y1..Y10 + net equity terminal) / equity outflow
+    total_inflows_y10 = fcfe_usd[1:y10_index + 1].sum() + terminal_to_equity
     moic_y10 = total_inflows_y10 / equity_usd if equity_usd > 0 else float("nan")
 
     # Payback (years to recover equity, using cumulative FCFE excluding Y0)
@@ -240,6 +268,18 @@ def model(
     dscr_min = float(np.min(dscr_valid)) if len(dscr_valid) > 0 else float("nan")
     dscr_avg = float(np.mean(dscr_valid)) if len(dscr_valid) > 0 else float("nan")
     dscr_breach = bool(dscr_min < P.DSCR_COVENANT_MIN) if not np.isnan(dscr_min) else False
+
+    # P90 DSCR: revenue × (P90 yield / P50 yield) = 0.9, opex and DS unchanged.
+    # Used in canonical LC IC headline ("Min DSCR P90 1.13x").
+    cfads_p90_usd = (annual_total_revenue_usd * P.YIELD_P90_FACTOR) - annual_opex_usd - tax_usd
+    with np.errstate(divide="ignore", invalid="ignore"):
+        dscr_p90 = np.where(
+            debt_service_usd > 0,
+            cfads_p90_usd / debt_service_usd,
+            np.nan,
+        )
+    dscr_p90_valid = dscr_p90[~np.isnan(dscr_p90)]
+    dscr_min_p90 = float(np.min(dscr_p90_valid)) if len(dscr_p90_valid) > 0 else float("nan")
 
     # Build cashflow dataframe
     cashflow_df = pd.DataFrame({
@@ -277,6 +317,7 @@ def model(
         y10_exit_irr=y10_irr,
         cashflow_df=cashflow_df,
         dscr_series=pd.Series(dscr, index=years, name="dscr"),
+        dscr_min_p90=dscr_min_p90,
     )
 
 
@@ -338,6 +379,40 @@ def _interest_schedule(
                 interest[y] = interest_y
                 balance = max(0.0, balance - principal_y)
     return interest
+
+
+def _debt_balance_schedule(
+    principal: float,
+    rate: float,
+    tenor: int,
+    grace: int,
+    total_years: int,
+) -> np.ndarray:
+    """End-of-year debt principal balance.
+
+    Returns array of length (total_years + 1) where index k is the balance
+    AT END of year k (after that year's amortization payment). Used for the
+    Y10 exit calculation: terminal equity value = EV − closing debt balance.
+    """
+    balance_arr = np.zeros(total_years + 1)
+    balance = principal
+    balance_arr[0] = principal  # End of Y0 = full principal drawn
+    # Grace years: balance unchanged
+    for y in range(1, grace + 1):
+        if y <= total_years:
+            balance_arr[y] = balance
+    # Amortization
+    amortization_years = tenor - grace
+    if amortization_years > 0 and rate > 0:
+        annuity = principal * (rate * (1 + rate) ** amortization_years) / ((1 + rate) ** amortization_years - 1)
+        for y in range(grace + 1, tenor + 1):
+            if y <= total_years:
+                interest_y = balance * rate
+                principal_y = annuity - interest_y
+                balance = max(0.0, balance - principal_y)
+                balance_arr[y] = balance
+    # After tenor: balance stays at 0
+    return balance_arr
 
 
 def _safe_irr(cashflows: list[float]) -> float:
