@@ -87,7 +87,7 @@ Full schema: `schemas/segment_csv_schema.json`. Templates: `data/bangplee_templa
 
 ## Reading the LC validation badge
 
-When `estate == Laem Chabang`, the app runs a ground-truth check against NC-FM-LC-001 v1.0 canonical values (locked in `engine/parameters.LC_CANONICAL`).
+When `estate == Laem Chabang`, the app runs a ground-truth check against NC-FM-LC-001 v1.0 canonical values (locked in `engine/parameters.LC_GROUND_TRUTH`).
 
 - ✅ Green: engine within ±0.5% of canonical. Outputs are trustworthy.
 - ⚠ Amber: engine drift detected. Investigate before relying on outputs for new estates.

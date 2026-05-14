@@ -3,40 +3,52 @@ NewCo Investment Scoping Calculator – Streamlit UI
 NC-STREAMLIT-001 v0.1
 """
 import io
+import time
 from pathlib import Path
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from supabase import create_client
 from engine.pipeline import run
 from engine.financial import FinancialInputs
-
-# ---- Supabase connection test (T101 smoke test) ----
-def _supabase_status():
-    try:
-        url = st.secrets["supabase"]["url"]
-        key = st.secrets["supabase"]["anon_key"]
-        client = create_client(url, key)
-        # Trivial REST call: list any tables (will be empty pre-migration)
-        project_ref = url.replace("https://", "").split(".")[0]
-        return True, f"Connected: {project_ref}"
-    except KeyError as e:
-        return False, f"Missing secret: {e}"
-    except Exception as e:
-        return False, f"Error: {type(e).__name__}: {str(e)[:80]}"
-# ----
+from engine import persistence, migrations
 
 st.set_page_config(page_title="NewCo Scoping Calculator", page_icon="⚡", layout="wide", initial_sidebar_state="expanded")
+
+# ---- T109: Auth gate (auth-aware mode; activates when [auth] secrets present) ----
+def _auth_configured() -> bool:
+    try:
+        return bool(st.secrets.get("auth", {}).get("google", {}).get("client_id"))
+    except Exception:
+        return False
+
+if _auth_configured():
+    if not st.user.is_logged_in:
+        st.title("NewCo Investment Scoping")
+        st.write("Please log in with your authorized Google account.")
+        st.button("Log in with Google", on_click=st.login, args=["google"])
+        st.stop()
+    current_user_email = st.user.email
+else:
+    current_user_email = "anonymous@dev"
+# ----
+
 st.title("NewCo Investment Scoping Calculator")
 st.caption("v0.1 prototype · NC-METH-001 canonical pipeline · IEAT-Industrial only")
 
 with st.sidebar:
-    _ok, _msg = _supabase_status()
-    if _ok:
-        st.success(f"Supabase: {_msg}")
+    # Supabase status (T106 schema check + T107 connection)
+    if persistence.is_available():
+        client = persistence.get_client()
+        schema_ok, schema_msg = migrations.apply_pending(client)
+        if schema_ok:
+            st.success(f"Supabase: {schema_msg}")
+        else:
+            st.warning(f"Supabase reachable but schema not ready: {schema_msg}")
     else:
-        st.error(f"Supabase: {_msg}")
+        st.error("Supabase: not configured (check secrets)")
+
     st.header("Configuration")
+    run_label = st.text_input("Run label (optional)", placeholder="e.g. LC v1.0 sponsor base")
     estate = st.selectbox("Estate", options=["Laem Chabang","Bangpoo","Bangplee","Map Ta Phut","Map Ta Phut Port","Lat Krabang","Lamphun","Other"], index=0)
     st.divider()
     st.subheader("Debt structure")
@@ -50,28 +62,47 @@ with st.sidebar:
     st.divider()
     st.subheader("BOI tax holiday")
     boi_years = st.selectbox("Tax holiday tenor", options=[8, 13], index=0)
+    st.divider()
+    st.caption(f"User: `{current_user_email}`")
 
 col_upload, col_preset = st.columns([2, 1])
 with col_upload:
     st.subheader("1. Upload segment CSV")
     uploaded = st.file_uploader("CSV with per-segment data", type=["csv"])
 with col_preset:
-    st.subheader("Or load a preset")
-    preset_choice = st.radio("Preset", ["None", "LC v1.0 canonical", "Bangplee template", "MTP template"], label_visibility="collapsed")
+    st.subheader("Or load a canonical preset")
+    # T107: load canonical registers from Supabase if available; fall back to local files.
+    canonical_registers = persistence.list_canonical_registers() if persistence.is_available() else []
+    if canonical_registers:
+        preset_options = ["None"] + [f"{r['name']} ({r['estate']})" for r in canonical_registers]
+        preset_id_map = {f"{r['name']} ({r['estate']})": r["id"] for r in canonical_registers}
+    else:
+        preset_options = ["None", "LC v1.0 canonical (local fallback)"]
+        preset_id_map = {}
+    preset_choice = st.radio("Preset", preset_options, label_visibility="collapsed")
 
 df_input = None
 data_source = None
+segment_register_id = None
 if uploaded is not None:
     df_input = pd.read_csv(uploaded)
     data_source = f"Uploaded: {uploaded.name}"
+    persistence.log_audit("register_uploaded", current_user_email, {"filename": uploaded.name, "rows": len(df_input)})
 elif preset_choice != "None":
-    preset_files = {"LC v1.0 canonical": "data/lc_v1_segments.csv", "Bangplee template": "data/bangplee_template.csv", "MTP template": "data/mtp_template.csv"}
-    preset_path = Path(preset_files[preset_choice])
-    if preset_path.exists():
-        df_input = pd.read_csv(preset_path)
-        data_source = f"Preset: {preset_choice}"
+    if preset_choice in preset_id_map:
+        # Load from Supabase
+        segment_register_id = preset_id_map[preset_choice]
+        df_input = persistence.load_register_csv(segment_register_id)
+        if df_input is not None:
+            data_source = f"Preset: {preset_choice}"
     else:
-        st.warning(f"Preset file not found at {preset_path}")
+        # Local fallback
+        preset_path = Path("data/lc_v1_segments.csv")
+        if preset_path.exists():
+            df_input = pd.read_csv(preset_path)
+            data_source = f"Preset (local): {preset_choice}"
+        else:
+            st.warning(f"Preset file not found at {preset_path}")
 
 if df_input is not None:
     st.success(f"Loaded: {data_source} · {len(df_input)} segments")
@@ -83,6 +114,7 @@ run_button = st.button("Run scoping", type="primary", disabled=(df_input is None
 
 if run_button and df_input is not None:
     with st.spinner("Running pipeline (Stages 1-7)..."):
+        _t0 = time.time()
         try:
             inputs = FinancialInputs(
                 debt_ltv=ltv / 100,
@@ -94,12 +126,39 @@ if run_button and df_input is not None:
             )
             result = run(df_input, inputs=inputs)
         except Exception as e:
+            persistence.log_audit(
+                "pipeline_error",
+                current_user_email,
+                {"error_type": type(e).__name__, "error_message": str(e)[:200], "estate": estate},
+            )
             st.error(f"Pipeline error: {e}")
             st.stop()
+        _duration_ms = int((time.time() - _t0) * 1000)
 
     if result.intake_errors:
         st.error(f"Intake errors: {result.intake_errors}")
         st.stop()
+
+    # T108: persist the run (best-effort; non-blocking on failure)
+    try:
+        run_id = persistence.save_run(
+            estate=estate,
+            inputs_snapshot=persistence.financial_inputs_to_snapshot(inputs),
+            results_snapshot=persistence.financial_results_to_snapshot(result.financial_60_ltv),
+            cashflow_data=persistence.cashflow_to_records(result.financial_60_ltv.cashflow_df),
+            validation_report=persistence.validation_report_to_dict(result.validation_report),
+            intake_warnings=result.intake_warnings,
+            intake_errors=result.intake_errors,
+            ran_by_email=current_user_email,
+            run_label=run_label or None,
+            segment_register_id=segment_register_id,
+            duration_ms=_duration_ms,
+        )
+        if run_id:
+            persistence.log_audit("run_created", current_user_email, {"run_id": run_id, "estate": estate})
+            st.caption(f"Run saved: `{run_id[:8]}…`  ·  {_duration_ms} ms")
+    except Exception as _e:
+        st.caption(f"Run completed but not saved to DB: {type(_e).__name__}")
 
     fin = result.financial_60_ltv
     cf = fin.cashflow_df
@@ -134,11 +193,11 @@ if run_button and df_input is not None:
         st.divider()
         st.subheader("Sensitivity tornado (IRR +/- bps from base)")
         try:
-            tornado_data = [{"dimension": r.dimension, "upside_bps": r.upside_bps, "downside_bps": r.downside_bps, "magnitude_bps": r.magnitude_bps} for r in result.tornado_results]
-            sens_df = pd.DataFrame(tornado_data).sort_values("magnitude_bps", ascending=True)
+            from engine.sensitivity import tornado_to_dataframe
+            sens_df = tornado_to_dataframe(result.tornado_results).sort_values("Range (bps)", ascending=True)
             fig2 = go.Figure()
-            fig2.add_trace(go.Bar(y=sens_df["dimension"], x=sens_df["upside_bps"], name="Upside", orientation="h", marker_color="#0D9488"))
-            fig2.add_trace(go.Bar(y=sens_df["dimension"], x=sens_df["downside_bps"], name="Downside", orientation="h", marker_color="#F59E0B"))
+            fig2.add_trace(go.Bar(y=sens_df["Sensitivity"], x=sens_df["Upside (bps)"], name="Upside", orientation="h", marker_color="#0D9488"))
+            fig2.add_trace(go.Bar(y=sens_df["Sensitivity"], x=sens_df["Downside (bps)"], name="Downside", orientation="h", marker_color="#F59E0B"))
             fig2.update_layout(barmode="overlay", xaxis_title="IRR delta (bps)", height=400, margin=dict(l=120,r=40,t=20,b=40))
             st.plotly_chart(fig2, use_container_width=True)
         except Exception as e:
@@ -161,6 +220,32 @@ if run_button and df_input is not None:
 
 else:
     st.info("Upload a segment CSV or select a preset, then click **Run scoping**.")
+
+# T108: Run history (always visible)
+if persistence.is_available():
+    st.divider()
+    with st.expander("📜 Run history (most recent 20)", expanded=False):
+        recent = persistence.list_recent_runs(limit=20)
+        if not recent:
+            st.caption("No runs saved yet.")
+        else:
+            history_rows = []
+            for r in recent:
+                snap = r.get("results_snapshot") or {}
+                history_rows.append({
+                    "Run": (r["id"] or "")[:8],
+                    "Label": r.get("run_label") or "—",
+                    "Estate": r.get("estate"),
+                    "Envelope MWp": snap.get("envelope_mwp"),
+                    "EPC $M": snap.get("epc_usd_m"),
+                    "Equity IRR": snap.get("equity_irr"),
+                    "Y10 exit IRR": snap.get("y10_exit_irr"),
+                    "DSCR min": snap.get("dscr_min"),
+                    "By": r.get("ran_by_email"),
+                    "At (UTC)": r.get("ran_at"),
+                })
+            history_df = pd.DataFrame(history_rows)
+            st.dataframe(history_df, use_container_width=True, hide_index=True)
 
 st.divider()
 st.caption("Engine: NC-METH-001 v1.1.0 · Parameters: NC-PARAM-001 v1.1.1 · Internal - not for redistribution")

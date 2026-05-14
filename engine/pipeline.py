@@ -88,6 +88,15 @@ def run(
 
     df_validated = intake_result.df
 
+    # Resolve estate early so LTV basis (and validation) can use it.
+    estate = df_validated["estate"].mode().iloc[0] if not df_validated.empty else "(unknown)"
+
+    # Resolve LTV basis: explicit input wins; else estate map; else default.
+    if inputs.ltv_basis is None:
+        from dataclasses import replace
+        resolved_basis = P.LTV_BASIS_BY_ESTATE.get(estate.strip().lower(), P.LTV_BASIS_DEFAULT)
+        inputs = replace(inputs, ltv_basis=resolved_basis)
+
     # Stage 2 — Sizing
     df_sized = sizing.compute(df_validated)
     envelope = sizing.envelope_mwp(df_sized)
@@ -125,7 +134,6 @@ def run(
         )
 
     # Acceptance check — only meaningful for LC
-    estate = df_validated["estate"].mode().iloc[0] if not df_validated.empty else "(unknown)"
     val_report = validation.validate_lc(estate, fin_60, fin_52)
 
     return PipelineResults(

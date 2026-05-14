@@ -178,6 +178,26 @@ LTV_LENDER_SIZED: Final[float] = 0.52            # 12.2% IRR (execution case)
 LTV_CONSERVATIVE: Final[float] = 0.45            # 11.7% IRR
 LTV_AGGRESSIVE: Final[float] = 0.70              # BREACHES DSCR at LC
 
+# LTV basis — what the LTV percentage applies to.
+# Per NC-FM-LC-001 v1.0 IC and standard PF practice for hard-asset senior debt:
+# debt is sized against hard EPC, not total project cost (which includes soft
+# costs, development fees, and IDC typically funded by equity).
+# Override per asset class via LTV_BASIS_BY_ESTATE below.
+# Resolved in 14 May 2026 sprint (NC-SPRINT-002 LC drift escalation): A + C.
+LTV_BASIS_EPC: Final[str] = "EPC"
+LTV_BASIS_TPC: Final[str] = "TPC"
+LTV_BASIS_DEFAULT: Final[str] = LTV_BASIS_EPC
+
+# Per-asset-class override map. Populate as new asset classes are validated
+# against ground truth. Keys are estate / asset-class names; lookup is
+# case-insensitive in financial.model. Falls back to LTV_BASIS_DEFAULT.
+LTV_BASIS_BY_ESTATE: Final[dict[str, str]] = {
+    "laem chabang": LTV_BASIS_EPC,
+    "lc": LTV_BASIS_EPC,
+    # Add other asset classes here as canonical references are established.
+    # Example: "bma-buildings": LTV_BASIS_TPC,
+}
+
 # ============================================================
 # §11 — Returns / operating parameters
 # ============================================================

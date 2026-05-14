@@ -46,6 +46,10 @@ class FinancialInputs:
     carbon_price_usd: float = P.CARBON_SOLAR_TVER_USD
     carbon_delivery_factor: float = P.CARBON_DELIVERY_DEFAULT
     tenant_consent_pct: float = 1.0  # for sensitivity
+    # NC-SPRINT-002 LC drift fix: explicit LTV basis. Default EPC per
+    # NC-FM-LC-001 v1.0 and standard PF practice. Pipeline resolves the
+    # per-estate value from P.LTV_BASIS_BY_ESTATE when this is left as None.
+    ltv_basis: Optional[str] = None
 
 
 @dataclass
@@ -148,7 +152,17 @@ def model(
     ebitda_usd = annual_total_revenue_usd - annual_opex_usd
 
     # Debt service
-    debt_usd = total_project_cost_usd * inputs.debt_ltv
+    # NC-SPRINT-002 LC drift resolution (May 2026): debt sized off EPC by
+    # default, per NC-FM-LC-001 v1.0 canonical and standard PF practice for
+    # hard-asset senior debt. Configurable via inputs.ltv_basis for asset
+    # classes (e.g. some sponsor-IRR comparables gear off TPC).
+    ltv_basis = (inputs.ltv_basis or P.LTV_BASIS_DEFAULT).upper()
+    if ltv_basis == P.LTV_BASIS_TPC:
+        debt_basis_usd = total_project_cost_usd
+    else:
+        # Default to EPC for any unrecognized value (fail safe to canonical).
+        debt_basis_usd = epc_usd
+    debt_usd = debt_basis_usd * inputs.debt_ltv
     equity_usd = total_project_cost_usd - debt_usd
     debt_service_usd = _debt_service_schedule(
         principal=debt_usd,
@@ -186,11 +200,12 @@ def model(
 
     # DSCR (per year, debt-service years only)
     cfads_usd = ebitda_usd - tax_usd  # cashflow available for debt service
-    dscr = np.where(
-        debt_service_usd > 0,
-        cfads_usd / debt_service_usd,
-        np.nan,
-    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        dscr = np.where(
+            debt_service_usd > 0,
+            cfads_usd / debt_service_usd,
+            np.nan,
+        )
 
     # Equity IRR over 25 years
     equity_irr = _safe_irr(fcfe_usd.tolist())
